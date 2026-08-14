@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Replit Offline CLI - Fully local terminal IDE with AI
+Anioxaz CLI - Fully local terminal IDE with AI
 Uses curses for a Replit‑style UI, a local GGUF model, and tracing.
+Made by only only Rehan Aman
 """
 
 import curses
