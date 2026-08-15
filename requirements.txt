@@ -1,0 +1,2 @@
+lamma.cpp
+curses #if on windows#
