@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """
-Anioxaz CLI - Fully local terminal IDE with AI
-Uses curses for a Replit‑style UI, a local GGUF model, and tracing.
-Made by only only Rehan Aman
+anioxaz_cli.py - VERTICAL MENU version with hidden editor
+Author: Rehan Aman
 """
 
 import curses
@@ -16,10 +15,8 @@ import time
 import queue
 import json
 from typing import List, Optional, Tuple, Dict, Any
-from dataclasses import dataclass
-from pathlib import Path
 
-# Try to import llama-cpp-python (optional)
+# Try to import llama-cpp-python
 try:
     from llama_cpp import Llama
 except ImportError:
@@ -28,22 +25,18 @@ except ImportError:
 # ===========================
 # CONFIGURATION
 # ===========================
-MODEL_PATH = ""          # will be set by the user
-EXECUTION_TIMEOUT = 10   # seconds
+EXECUTION_TIMEOUT = 10
 EDITOR_TAB_WIDTH = 4
 
 # ===========================
-# MODULE 1: LOCAL AI ASSISTANT (no internet)
+# MODULE 1: LOCAL AI ASSISTANT
 # ===========================
 class AIAssistant:
-    """Uses a local GGUF model via llama-cpp-python."""
-
     def __init__(self):
         self.llm = None
         self.model_path = None
 
     def load_model(self, path: str) -> bool:
-        """Load a GGUF model. Returns True on success."""
         if Llama is None:
             return False
         try:
@@ -55,7 +48,7 @@ class AIAssistant:
 
     def _ask(self, prompt: str) -> str:
         if self.llm is None:
-            return "[Error: No model loaded. Use :model <path>]"
+            return "[Error: No model loaded. Use Model menu to load.]"
         try:
             output = self.llm.create_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
@@ -80,15 +73,13 @@ class AIAssistant:
         return self._ask(prompt)
 
 # ===========================
-# MODULE 2: TRACER (line and variable capture)
+# MODULE 2: TRACER
 # ===========================
 class Tracer:
-    """Runs code with sys.settrace and sends events via callback."""
     def __init__(self, callback):
-        self.callback = callback  # callback(event_type, data)
+        self.callback = callback
 
     def run_with_tracing(self, code: str) -> Tuple[List[Tuple[str, str]], Optional[str]]:
-        """Returns (list of (stream, line), error_message)."""
         with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
             f.write(code)
             user_file = f.name
@@ -150,10 +141,14 @@ exec(open(r'{user_file}').read())
         except Exception as e:
             error = str(e)
         finally:
-            try: os.unlink(user_file)
-            except: pass
-            try: os.unlink(wrapper_file)
-            except: pass
+            try:
+                os.unlink(user_file)
+            except:
+                pass
+            try:
+                os.unlink(wrapper_file)
+            except:
+                pass
 
         return output, error
 
@@ -176,10 +171,9 @@ exec(open(r'{user_file}').read())
             output.append(('stdout', line))
 
 # ===========================
-# MODULE 3: TERMINAL (shell commands)
+# MODULE 3: TERMINAL
 # ===========================
 class Terminal:
-    """Runs shell commands asynchronously and outputs via callback."""
     def __init__(self, output_callback):
         self.output_callback = output_callback
         self.process = None
@@ -214,7 +208,7 @@ class Terminal:
             self.process.terminate()
 
 # ===========================
-# MODULE 4: CURSES APPLICATION
+# MODULE 4: CURSES APPLICATION (vertical menu, editor hidden by default)
 # ===========================
 class ReplitApp:
     def __init__(self):
@@ -223,52 +217,82 @@ class ReplitApp:
         self.tracer = Tracer(self.trace_callback)
 
         # UI state
-        self.code_lines = [""]          # list of lines
-        self.cursor_y = 0               # line index
-        self.cursor_x = 0               # column within line
-        self.scroll_y = 0               # vertical scroll offset
-        self.scroll_x = 0               # horizontal scroll offset
+        self.code_lines = [""]
+        self.cursor_y = 0
+        self.cursor_x = 0
+        self.scroll_y = 0
+        self.scroll_x = 0
         self.filename = None
         self.running = False
         self.auto_heal = False
 
-        # Output/trace data
-        self.output_lines = []           # list of strings
-        self.trace_events = []           # list of (event_type, data)
+        # Output/trace
+        self.output_lines = ["Welcome to anioxaz_cli! Use ↑/↓ to navigate, Enter to select, ESC to return."]
+        self.trace_events = []
         self.output_scroll = 0
 
-        # Queue for UI updates from threads
+        # UI queue
         self.ui_queue = queue.Queue()
 
-        # Curses windows
-        self.stdscr = None
-        self.editor_win = None
-        self.output_win = None
-        self.status_win = None
-        self.cmd_win = None
+        # State: "menu" | "submenu" | "editor" | "shell" | "prompt"
+        self.state = "menu"
+        self.menu_selection = 0
+        self.main_menu = [
+            ("Editor", "editor"),
+            ("Run", "run"),
+            ("Explain", "explain"),
+            ("Fix", "fix"),
+            ("Generate", "generate"),
+            ("File", "file_submenu"),
+            ("Model", "model"),
+            ("Shell", "shell"),
+            ("AutoHeal", "autoheal"),
+            ("Help", "help"),
+            ("Exit", "exit")
+        ]
+        self.file_submenu = [
+            ("Open", "open"),
+            ("Save", "save"),
+            ("Save As", "save_as"),
+            ("Rename", "rename"),
+            ("Back", "back")
+        ]
+        self.submenu_selection = 0
 
-        # Dimensions
+        # Prompt
+        self.prompt_text = ""
+        self.prompt_buffer = ""
+        self.prompt_callback = None
+
+        # Shell mode
+        self.shell_buffer = ""
+
+        # Terminal dimensions
         self.rows = 0
         self.cols = 0
+        self.banner_rows = 4
+        self.menu_x = 2
+        self.menu_y = self.banner_rows + 1
         self.editor_rows = 0
-        self.editor_cols = 0
         self.output_rows = 0
-        self.output_cols = 0
+        self.status_rows = 1
 
-        # Command input state
-        self.cmd_mode = False
-        self.cmd_buffer = ""
-        self.cmd_history = []
-        self.cmd_history_idx = 0
+        self.stdscr = None
 
-        # Key bindings
-        self.keys = {
-            'save': (curses.KEY_CTRL, ord('S')),
-            'open': (curses.KEY_CTRL, ord('O')),
-            'run': (curses.KEY_CTRL, ord('R')),
-        }
+        # Colors
+        self.COLOR_RED = 1
+        self.COLOR_GREEN = 2
+        self.COLOR_BLUE = 3
+        self.COLOR_YELLOW = 4
+        self.COLOR_MAGENTA = 5
+        self.COLOR_CYAN = 6
+        self.COLOR_WHITE = 7
+        self.COLOR_HIGHLIGHT = 8
+        self.COLOR_STATUS = 9
+        self.COLOR_PROMPT = 10
+        self.COLOR_SHELL = 11
 
-    # ---------- UI Callbacks ----------
+    # ---------- Callbacks ----------
     def output_callback(self, text):
         self.ui_queue.put(('output', text))
 
@@ -276,88 +300,246 @@ class ReplitApp:
         self.ui_queue.put(('trace', (event_type, data)))
 
     # ---------- Drawing ----------
-    def _redraw(self):
-        self.stdscr.clear()
-        self._draw_editor()
-        self._draw_output()
-        self._draw_status()
-        self._draw_command()
-        self.stdscr.refresh()
+    def _init_colors(self):
+        if curses.has_colors():
+            curses.start_color()
+            curses.init_pair(self.COLOR_RED, curses.COLOR_RED, curses.COLOR_BLACK)
+            curses.init_pair(self.COLOR_GREEN, curses.COLOR_GREEN, curses.COLOR_BLACK)
+            curses.init_pair(self.COLOR_BLUE, curses.COLOR_BLUE, curses.COLOR_BLACK)
+            curses.init_pair(self.COLOR_YELLOW, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+            curses.init_pair(self.COLOR_MAGENTA, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+            curses.init_pair(self.COLOR_CYAN, curses.COLOR_CYAN, curses.COLOR_BLACK)
+            curses.init_pair(self.COLOR_WHITE, curses.COLOR_WHITE, curses.COLOR_BLACK)
+            curses.init_pair(self.COLOR_HIGHLIGHT, curses.COLOR_BLACK, curses.COLOR_CYAN)
+            curses.init_pair(self.COLOR_STATUS, curses.COLOR_WHITE, curses.COLOR_BLUE)
+            curses.init_pair(self.COLOR_PROMPT, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+            curses.init_pair(self.COLOR_SHELL, curses.COLOR_GREEN, curses.COLOR_BLACK)
 
-    def _draw_editor(self):
-        h, w = self.editor_win.getmaxyx()
-        self.editor_win.erase()
+    def _draw_banner(self, stdscr):
+        banner = [
+            " █████  ███    ██ ██  ██████  ██   ██  █████  ███████ ██  ",
+            "██   ██ ████   ██ ██ ██    ██  ██ ██  ██   ██    ███  ██  ",
+            "███████ ██ ██  ██ ██ ██    ██   ███   ███████   ███   ██  ",
+            "██   ██ ██  ██ ██ ██ ██    ██  ██ ██  ██   ██  ███    ██  ",
+            "██   ██ ██   ████ ██  ██████  ██   ██ ██   ██ ███████ ██  ",
+        ]
+        for i, line in enumerate(banner[:self.banner_rows]):
+            if i >= self.rows:
+                break
+            try:
+                stdscr.addstr(i, 0, line[:self.cols], curses.color_pair(self.COLOR_RED) | curses.A_BOLD)
+            except:
+                pass
 
-        # Show line numbers
+    def _draw_vertical_menu(self, stdscr, items, selection, title=""):
+        y = self.menu_y
+        x = self.menu_x
+        if title:
+            try:
+                stdscr.addstr(y, x, title, curses.color_pair(self.COLOR_CYAN) | curses.A_BOLD)
+            except:
+                pass
+            y += 1
+        for idx, (label, _) in enumerate(items):
+            color = curses.color_pair(self.COLOR_WHITE)
+            if idx == selection:
+                color = curses.color_pair(self.COLOR_HIGHLIGHT) | curses.A_BOLD
+            elif idx % 2 == 0:
+                color = curses.color_pair(self.COLOR_GREEN)
+            else:
+                color = curses.color_pair(self.COLOR_YELLOW)
+            try:
+                stdscr.addstr(y + idx, x, f"  {label}  ", color)
+            except:
+                pass
+
+    def _draw_editor(self, stdscr):
+        # Only draw if state is editor
+        if self.state != "editor":
+            return
+        start_y = self.banner_rows + 2
+        h = self.editor_rows
+        w = self.cols
+        if h <= 0 or w <= 0:
+            return
+        # Draw a border around the editor
+        try:
+            stdscr.attron(curses.color_pair(self.COLOR_BLUE) | curses.A_DIM)
+            stdscr.hline(start_y - 1, 0, curses.ACS_HLINE, w)
+            stdscr.attroff(curses.color_pair(self.COLOR_BLUE) | curses.A_DIM)
+        except:
+            pass
         line_num_width = len(str(len(self.code_lines))) + 1
+        if line_num_width >= w:
+            line_num_width = 1
         for i in range(h):
             line_idx = i + self.scroll_y
             if line_idx >= len(self.code_lines):
                 break
             line = self.code_lines[line_idx]
-            # Line number
             num_str = f"{line_idx+1:>{line_num_width-1}} " if line_idx >= 0 else " "
-            self.editor_win.addstr(i, 0, num_str, curses.A_DIM)
-            # Code text (with horizontal scroll)
+            try:
+                stdscr.addstr(start_y + i, 0, num_str[:w], curses.color_pair(self.COLOR_MAGENTA) | curses.A_DIM)
+            except:
+                pass
             if len(line) > self.scroll_x:
                 disp = line[self.scroll_x:]
             else:
                 disp = ""
-            # Truncate to width
             max_disp = w - line_num_width
+            if max_disp <= 0:
+                continue
             if len(disp) > max_disp:
                 disp = disp[:max_disp-1] + "…"
-            self.editor_win.addstr(i, line_num_width, disp)
-
-        # Place cursor
-        cursor_y = self.cursor_y - self.scroll_y
+            try:
+                stdscr.addstr(start_y + i, line_num_width, disp[:max_disp])
+            except:
+                pass
+        # Cursor
+        cursor_y = start_y + self.cursor_y - self.scroll_y
         cursor_x = self.cursor_x - self.scroll_x + line_num_width
-        if 0 <= cursor_y < h and 0 <= cursor_x < w:
-            self.editor_win.move(cursor_y, cursor_x)
-        self.editor_win.refresh()
+        if 0 <= cursor_y < start_y + h and 0 <= cursor_x < w:
+            stdscr.move(cursor_y, cursor_x)
 
-    def _draw_output(self):
-        h, w = self.output_win.getmaxyx()
-        self.output_win.erase()
-        # Show output lines (scrollable)
+    def _draw_output(self, stdscr):
+        start_y = self.banner_rows + self.editor_rows + 3
+        if self.state == "menu" or self.state == "submenu":
+            # menu mode: output starts right after menu
+            # menu ends at menu_y + len(menu_items) - but we calculate a fixed offset
+            # Use the same start_y as if editor hidden
+            start_y = self.banner_rows + 3
+        h = self.output_rows
+        w = self.cols
+        if h <= 0 or w <= 0:
+            return
+        # Draw a separator line
+        try:
+            stdscr.addstr(start_y - 1, 0, "─" * min(w, 80), curses.color_pair(self.COLOR_BLUE) | curses.A_DIM)
+        except:
+            pass
         start = max(0, len(self.output_lines) - h)
         for i, line in enumerate(self.output_lines[start:]):
             if i >= h:
                 break
-            self.output_win.addstr(i, 0, line[:w-1])
-        self.output_win.refresh()
+            try:
+                stdscr.addstr(start_y + i, 0, line[:w-1])
+            except:
+                pass
 
-    def _draw_status(self):
-        h, w = self.status_win.getmaxyx()
-        self.status_win.erase()
+    def _draw_status(self, stdscr):
+        y = self.rows - self.status_rows
+        w = self.cols
+        if y < 0:
+            return
         model_status = self.ai.model_path if self.ai.model_path else "No model"
         filename = self.filename or "Untitled"
         mode = "RUNNING" if self.running else "EDIT"
-        status = f"[{mode}] {filename} | Model: {model_status} | Auto‑heal: {'ON' if self.auto_heal else 'OFF'}"
+        state_str = self.state.upper()
+        status = f"[{mode}] {filename} | Model: {model_status} | Auto‑heal: {'ON' if self.auto_heal else 'OFF'} | State: {state_str}"
         if len(status) > w-1:
             status = status[:w-1]
-        self.status_win.addstr(0, 0, status)
-        self.status_win.refresh()
+        try:
+            stdscr.addstr(y, 0, status, curses.color_pair(self.COLOR_STATUS) | curses.A_BOLD)
+        except:
+            pass
 
-    def _draw_command(self):
-        h, w = self.cmd_win.getmaxyx()
-        self.cmd_win.erase()
-        prompt = ":" if self.cmd_mode else ">"
-        text = prompt + self.cmd_buffer
-        self.cmd_win.addstr(0, 0, text[:w-1])
-        if self.cmd_mode:
-            self.cmd_win.move(0, len(prompt) + len(self.cmd_buffer))
-        self.cmd_win.refresh()
+    def _draw_prompt(self, stdscr):
+        if self.state != "prompt":
+            return
+        y = self.rows - self.status_rows - 1
+        w = self.cols
+        if y < 0:
+            return
+        stdscr.move(y, 0)
+        stdscr.clrtoeol()
+        text = self.prompt_text + self.prompt_buffer
+        try:
+            stdscr.addstr(y, 0, text[:w-1], curses.color_pair(self.COLOR_PROMPT) | curses.A_BOLD)
+        except:
+            pass
+        pos = len(self.prompt_text) + len(self.prompt_buffer)
+        if pos < w:
+            stdscr.move(y, pos)
+
+    def _draw_shell(self, stdscr):
+        if self.state != "shell":
+            return
+        y = self.rows - self.status_rows - 1
+        w = self.cols
+        if y < 0:
+            return
+        stdscr.move(y, 0)
+        stdscr.clrtoeol()
+        text = "$ " + self.shell_buffer
+        try:
+            stdscr.addstr(y, 0, text[:w-1], curses.color_pair(self.COLOR_SHELL) | curses.A_BOLD)
+        except:
+            pass
+        pos = len(text)
+        if pos < w:
+            stdscr.move(y, pos)
+
+    def _redraw(self):
+        stdscr = self.stdscr
+        stdscr.clear()
+        self._draw_banner(stdscr)
+        if self.state == "menu":
+            self._draw_vertical_menu(stdscr, self.main_menu, self.menu_selection)
+        elif self.state == "submenu":
+            self._draw_vertical_menu(stdscr, self.file_submenu, self.submenu_selection, "FILE MENU")
+        elif self.state == "editor":
+            self._draw_editor(stdscr)
+        elif self.state == "shell":
+            self._draw_shell(stdscr)
+        elif self.state == "prompt":
+            self._draw_prompt(stdscr)
+        # Always draw output and status
+        self._draw_output(stdscr)
+        self._draw_status(stdscr)
+        stdscr.refresh()
 
     # ---------- Input Handling ----------
     def _handle_key(self, key):
-        if self.cmd_mode:
-            self._handle_cmd_key(key)
-            return
+        if self.state == "menu":
+            self._handle_menu_key(key)
+        elif self.state == "submenu":
+            self._handle_submenu_key(key)
+        elif self.state == "editor":
+            self._handle_editor_key(key)
+        elif self.state == "shell":
+            self._handle_shell_key(key)
+        elif self.state == "prompt":
+            self._handle_prompt_key(key)
 
-        # Editor mode
+    # ---------- Menu Navigation ----------
+    def _handle_menu_key(self, key):
+        if key == curses.KEY_UP:
+            self.menu_selection = (self.menu_selection - 1) % len(self.main_menu)
+        elif key == curses.KEY_DOWN:
+            self.menu_selection = (self.menu_selection + 1) % len(self.main_menu)
+        elif key == 10 or key == 13:  # Enter
+            self._execute_menu_action(self.main_menu[self.menu_selection][1])
+        elif key == 27:  # ESC – no effect in main menu
+            pass
+
+    def _handle_submenu_key(self, key):
+        if key == curses.KEY_UP:
+            self.submenu_selection = (self.submenu_selection - 1) % len(self.file_submenu)
+        elif key == curses.KEY_DOWN:
+            self.submenu_selection = (self.submenu_selection + 1) % len(self.file_submenu)
+        elif key == 10 or key == 13:
+            action = self.file_submenu[self.submenu_selection][1]
+            self._execute_submenu_action(action)
+        elif key == 27:  # ESC – back to main menu
+            self.state = "menu"
+
+    # ---------- Editor ----------
+    def _handle_editor_key(self, key):
+        if key == 27:  # ESC – return to menu
+            self.state = "menu"
+            return
+        # Standard editor keys
         if key == curses.KEY_ENTER or key == 10 or key == 13:
-            # Insert new line
             line = self.code_lines[self.cursor_y]
             self.code_lines.insert(self.cursor_y + 1, line[self.cursor_x:])
             self.code_lines[self.cursor_y] = line[:self.cursor_x]
@@ -365,14 +547,12 @@ class ReplitApp:
             self.cursor_x = 0
             self._ensure_cursor_visible()
             return
-
         if key == curses.KEY_BACKSPACE or key == 127 or key == 8:
             if self.cursor_x > 0:
                 line = self.code_lines[self.cursor_y]
                 self.code_lines[self.cursor_y] = line[:self.cursor_x-1] + line[self.cursor_x:]
                 self.cursor_x -= 1
             elif self.cursor_y > 0:
-                # Join with previous line
                 prev_line = self.code_lines[self.cursor_y-1]
                 curr_line = self.code_lines[self.cursor_y]
                 self.code_lines[self.cursor_y-1] = prev_line + curr_line
@@ -381,17 +561,14 @@ class ReplitApp:
                 self.cursor_x = len(prev_line)
             self._ensure_cursor_visible()
             return
-
         if key == curses.KEY_DC:
             line = self.code_lines[self.cursor_y]
             if self.cursor_x < len(line):
                 self.code_lines[self.cursor_y] = line[:self.cursor_x] + line[self.cursor_x+1:]
             elif self.cursor_y < len(self.code_lines)-1:
-                # Join with next line
                 self.code_lines[self.cursor_y] = line + self.code_lines[self.cursor_y+1]
                 del self.code_lines[self.cursor_y+1]
             return
-
         if key == curses.KEY_LEFT:
             if self.cursor_x > 0:
                 self.cursor_x -= 1
@@ -400,7 +577,6 @@ class ReplitApp:
                 self.cursor_x = len(self.code_lines[self.cursor_y])
             self._ensure_cursor_visible()
             return
-
         if key == curses.KEY_RIGHT:
             if self.cursor_x < len(self.code_lines[self.cursor_y]):
                 self.cursor_x += 1
@@ -409,72 +585,40 @@ class ReplitApp:
                 self.cursor_x = 0
             self._ensure_cursor_visible()
             return
-
         if key == curses.KEY_UP:
             if self.cursor_y > 0:
                 self.cursor_y -= 1
                 self.cursor_x = min(self.cursor_x, len(self.code_lines[self.cursor_y]))
             self._ensure_cursor_visible()
             return
-
         if key == curses.KEY_DOWN:
             if self.cursor_y < len(self.code_lines)-1:
                 self.cursor_y += 1
                 self.cursor_x = min(self.cursor_x, len(self.code_lines[self.cursor_y]))
             self._ensure_cursor_visible()
             return
-
         if key == curses.KEY_HOME:
             self.cursor_x = 0
             self._ensure_cursor_visible()
             return
-
         if key == curses.KEY_END:
             self.cursor_x = len(self.code_lines[self.cursor_y])
             self._ensure_cursor_visible()
             return
-
         if key == curses.KEY_PPAGE:
             self.cursor_y = max(0, self.cursor_y - self.editor_rows)
             self._ensure_cursor_visible()
             return
-
         if key == curses.KEY_NPAGE:
             self.cursor_y = min(len(self.code_lines)-1, self.cursor_y + self.editor_rows)
             self._ensure_cursor_visible()
             return
-
-        # Ctrl+O: open
-        if key == ord('O') and (curses.KEY_CTRL == 0):  # cheat: check with ctrl
-            self._open_file()
-            return
-
-        # Ctrl+S: save
-        if key == ord('S') and False:  # we'll handle with command
-            self._save_file()
-            return
-
-        # Ctrl+R: run
-        if key == ord('R') and False:
-            self._run_code()
-            return
-
-        # Enter command mode
-        if key == ord(':'):
-            self.cmd_mode = True
-            self.cmd_buffer = ""
-            return
-
-        # Tab key for indentation
-        if key == ord('\t') or key == curses.KEY_BTAB:
-            # Insert 4 spaces
+        if key == ord('\t'):
             line = self.code_lines[self.cursor_y]
             self.code_lines[self.cursor_y] = line[:self.cursor_x] + " " * EDITOR_TAB_WIDTH + line[self.cursor_x:]
             self.cursor_x += EDITOR_TAB_WIDTH
             self._ensure_cursor_visible()
             return
-
-        # Normal printable characters
         if 32 <= key <= 126:
             line = self.code_lines[self.cursor_y]
             self.code_lines[self.cursor_y] = line[:self.cursor_x] + chr(key) + line[self.cursor_x:]
@@ -483,95 +627,111 @@ class ReplitApp:
             return
 
     def _ensure_cursor_visible(self):
-        # Adjust scroll
-        h, w = self.editor_win.getmaxyx()
+        h = self.editor_rows
+        w = self.cols
         line_num_width = len(str(len(self.code_lines))) + 1
         if self.cursor_y < self.scroll_y:
             self.scroll_y = self.cursor_y
         elif self.cursor_y >= self.scroll_y + h:
             self.scroll_y = self.cursor_y - h + 1
-        # Horizontal
         if self.cursor_x < self.scroll_x:
             self.scroll_x = self.cursor_x
         elif self.cursor_x >= self.scroll_x + (w - line_num_width):
             self.scroll_x = self.cursor_x - (w - line_num_width) + 1
         self.scroll_x = max(0, self.scroll_x)
 
-    # ---------- Command Handling ----------
-    def _handle_cmd_key(self, key):
-        if key == 10 or key == 13:  # Enter
-            self._execute_command(self.cmd_buffer)
-            self.cmd_buffer = ""
-            self.cmd_mode = False
+    # ---------- Shell ----------
+    def _handle_shell_key(self, key):
+        if key == 27:  # ESC – back to menu
+            self.state = "menu"
             return
-        if key == 27:  # ESC
-            self.cmd_mode = False
-            self.cmd_buffer = ""
+        if key == 10 or key == 13:  # Enter – execute command
+            if self.shell_buffer.strip():
+                self.terminal.run_command(self.shell_buffer)
+            self.shell_buffer = ""
             return
         if key == curses.KEY_BACKSPACE or key == 127:
-            self.cmd_buffer = self.cmd_buffer[:-1]
+            self.shell_buffer = self.shell_buffer[:-1]
             return
         if 32 <= key <= 126:
-            self.cmd_buffer += chr(key)
+            self.shell_buffer += chr(key)
             return
 
-    def _execute_command(self, cmd):
-        cmd = cmd.strip()
-        if not cmd:
+    # ---------- Prompt ----------
+    def _handle_prompt_key(self, key):
+        if key == 10 or key == 13:
+            callback = self.prompt_callback
+            buf = self.prompt_buffer
+            self.state = "menu"  # return to menu after prompt
+            self.prompt_buffer = ""
+            self.prompt_text = ""
+            self.prompt_callback = None
+            if callback:
+                callback(buf)
             return
-        # Special commands start with :
-        if cmd.startswith(':'):
-            parts = cmd[1:].split()
-            if not parts:
-                return
-            verb = parts[0].lower()
-            args = parts[1:]
-            if verb == 'model':
-                if args:
-                    path = ' '.join(args)
-                    if self.ai.load_model(path):
-                        self.output_callback(f"Model loaded: {path}\n")
-                    else:
-                        self.output_callback(f"Failed to load model from {path}\n")
-                else:
-                    self.output_callback("Usage: :model /path/to/model.gguf\n")
-            elif verb == 'save':
-                self._save_file()
-            elif verb == 'open':
-                if args:
-                    self._open_file(' '.join(args))
-                else:
-                    self.output_callback("Usage: :open filename\n")
-            elif verb == 'run':
-                self._run_code()
-            elif verb == 'explain':
-                self._ai_explain()
-            elif verb == 'fix':
-                self._ai_fix()
-            elif verb == 'generate':
-                if args:
-                    desc = ' '.join(args)
-                    self._ai_generate(desc)
-                else:
-                    self.output_callback("Usage: :generate description\n")
-            elif verb == 'autoheal':
-                if args and args[0].lower() in ('on','off'):
-                    self.auto_heal = args[0].lower() == 'on'
-                    self.output_callback(f"Auto‑heal set to {self.auto_heal}\n")
-                else:
-                    self.output_callback(f"Auto‑heal is {'ON' if self.auto_heal else 'OFF'}\n")
-            elif verb == 'help':
-                self._show_help()
-            else:
-                self.output_callback(f"Unknown command: {verb}\n")
-        else:
-            # Treat as shell command
-            self.terminal.run_command(cmd)
+        if key == 27:  # ESC – cancel
+            self.state = "menu"
+            self.prompt_buffer = ""
+            self.prompt_text = ""
+            self.prompt_callback = None
+            return
+        if key == curses.KEY_BACKSPACE or key == 127:
+            self.prompt_buffer = self.prompt_buffer[:-1]
+            return
+        if 32 <= key <= 126:
+            self.prompt_buffer += chr(key)
+            return
+
+    # ---------- Actions ----------
+    def _execute_menu_action(self, action):
+        if action == "editor":
+            self.state = "editor"
+        elif action == "run":
+            self._run_code()
+        elif action == "explain":
+            self._ai_explain()
+        elif action == "fix":
+            self._start_prompt("Error description: ", self._ai_fix_with_desc)
+        elif action == "generate":
+            self._start_prompt("Description: ", self._ai_generate_with_desc)
+        elif action == "file_submenu":
+            self.state = "submenu"
+            self.submenu_selection = 0
+        elif action == "model":
+            self._start_prompt("Path to GGUF model: ", self._load_model)
+        elif action == "shell":
+            self.state = "shell"
+            self.shell_buffer = ""
+        elif action == "autoheal":
+            self.auto_heal = not self.auto_heal
+            self.output_callback(f"Auto‑heal {'enabled' if self.auto_heal else 'disabled'}\n")
+        elif action == "help":
+            self._show_help()
+        elif action == "exit":
+            sys.exit(0)
+
+    def _execute_submenu_action(self, action):
+        if action == "open":
+            self._start_prompt("Filename to open: ", self._open_file)
+        elif action == "save":
+            self._save_file()
+        elif action == "save_as":
+            self._start_prompt("Save as: ", self._save_file_as)
+        elif action == "rename":
+            self._start_prompt("New filename: ", self._rename_file)
+        elif action == "back":
+            self.state = "menu"
+
+    def _start_prompt(self, prompt, callback):
+        self.state = "prompt"
+        self.prompt_text = prompt
+        self.prompt_buffer = ""
+        self.prompt_callback = callback
 
     # ---------- File Operations ----------
     def _save_file(self):
         if not self.filename:
-            self.output_callback("No filename set. Use :open <file> to set.\n")
+            self.output_callback("No filename set. Use Save As.\n")
             return
         try:
             with open(self.filename, 'w') as f:
@@ -580,11 +740,32 @@ class ReplitApp:
         except Exception as e:
             self.output_callback(f"Save error: {e}\n")
 
-    def _open_file(self, path=None):
-        if path is None:
-            # we can't prompt easily in curses; we'll ask via command input or simply use current filename
-            self.output_callback("Please use :open <filename>\n")
+    def _save_file_as(self, path):
+        if not path:
             return
+        try:
+            with open(path, 'w') as f:
+                f.write('\n'.join(self.code_lines))
+            self.filename = path
+            self.output_callback(f"Saved as: {path}\n")
+        except Exception as e:
+            self.output_callback(f"Save error: {e}\n")
+
+    def _rename_file(self, newname):
+        if not newname:
+            return
+        old = self.filename
+        if old and os.path.exists(old):
+            try:
+                os.rename(old, newname)
+                self.filename = newname
+                self.output_callback(f"Renamed {old} → {newname}\n")
+            except Exception as e:
+                self.output_callback(f"Rename error: {e}\n")
+        else:
+            self.output_callback("No existing file to rename.\n")
+
+    def _open_file(self, path):
         try:
             with open(path, 'r') as f:
                 content = f.read()
@@ -600,7 +781,13 @@ class ReplitApp:
         except Exception as e:
             self.output_callback(f"Open error: {e}\n")
 
-    # ---------- Run Code ----------
+    def _load_model(self, path):
+        if self.ai.load_model(path):
+            self.output_callback(f"Model loaded: {path}\n")
+        else:
+            self.output_callback(f"Failed to load model from {path}\n")
+
+    # ---------- AI & Run ----------
     def _run_code(self):
         if self.running:
             return
@@ -627,7 +814,6 @@ class ReplitApp:
 
         threading.Thread(target=execute, daemon=True).start()
 
-    # ---------- AI Actions ----------
     def _ai_explain(self):
         code = '\n'.join(self.code_lines)
         if not code.strip():
@@ -637,26 +823,14 @@ class ReplitApp:
         resp = self.ai.explain_code(code)
         self.output_callback(resp + "\n")
 
-    def _ai_fix(self):
-        code = '\n'.join(self.code_lines)
-        if not code.strip():
-            self.output_callback("No code to fix.\n")
-            return
-        # We need to ask for error description. Use a simple prompt in output area.
-        self.output_callback("Describe the error or what's wrong, then type 'END' on a new line.\n")
-        # We'll handle this by reading from command input? Better to use a simple modal.
-        # For simplicity, we'll ask via a prompt (we can't do input easily in curses without blocking)
-        # We'll use a small input routine.
-        self._prompt_user("Error description: ", self._ai_fix_callback)
-
-    def _ai_fix_callback(self, desc):
+    def _ai_fix_with_desc(self, desc):
         if not desc:
+            self.output_callback("No error description.\n")
             return
         code = '\n'.join(self.code_lines)
         self.output_callback("--- AI Fixing ---\n")
         resp = self.ai.fix_code(code, desc)
         if resp:
-            # Replace code
             self.code_lines = resp.splitlines()
             if not self.code_lines:
                 self.code_lines = [""]
@@ -668,7 +842,10 @@ class ReplitApp:
         else:
             self.output_callback("No fix generated.\n")
 
-    def _ai_generate(self, desc):
+    def _ai_generate_with_desc(self, desc):
+        if not desc:
+            self.output_callback("No description.\n")
+            return
         self.output_callback("--- Generating ---\n")
         resp = self.ai.generate_code(desc)
         if resp:
@@ -691,76 +868,56 @@ class ReplitApp:
             if not self.code_lines:
                 self.code_lines = [""]
             self.output_callback("[Auto‑heal] Code fixed. Re‑running...\n")
-            self._run_code()  # re‑run automatically
+            self._run_code()
         else:
             self.output_callback("[Auto‑heal] No fix found.\n")
 
-    # ---------- Prompt user (simple) ----------
-    def _prompt_user(self, prompt, callback):
-        # This is a hack: we temporarily set a callback for the next command input
-        self._prompt_callback = callback
-        self._prompt_text = prompt
-        self.cmd_mode = True
-        self.cmd_buffer = prompt
-        # We'll handle special mode where command input is used for prompt
-        # We'll override normal command execution for one shot
-        self._in_prompt = True
-
-    # We'll intercept command execution when in prompt mode
-    def _execute_command(self, cmd):
-        if hasattr(self, '_in_prompt') and self._in_prompt:
-            # This is a prompt response
-            self._in_prompt = False
-            if hasattr(self, '_prompt_callback'):
-                cb = self._prompt_callback
-                delattr(self, '_prompt_callback')
-                delattr(self, '_prompt_text')
-                cb(cmd)
-            return
-        # Normal command handling
-        super()._execute_command(cmd)  # but we are in same class, so we use the method above
-
-    # We need to refactor: the above is messy. For simplicity, we'll skip the prompt and use a fixed description for fix.
-
     def _show_help(self):
         help_text = """
-Commands:
-  :model <path>          – load a GGUF model
-  :open <file>           – open a Python file
-  :save                  – save current file
-  :run                   – run the code with tracing
-  :explain               – explain current code
-  :fix                   – fix code (asks for error description)
-  :generate <desc>       – generate code from description
-  :autoheal on/off       – toggle auto‑healing
-  :help                  – show this help
+ANIOXAZ – Local AI Coding Partner (menu-driven)
 
-Shell commands can be typed directly (e.g., ls, pip).
+Main Menu:
+  Editor  – enter the code editor (ESC to return)
+  Run     – execute code with live tracing
+  Explain – AI explains your code
+  Fix     – AI fixes your code (asks for error description)
+  Generate – AI generates code from a description
+  File    – submenu: Open, Save, Save As, Rename
+  Model   – load a GGUF model (path)
+  Shell   – run shell commands (ESC to return)
+  AutoHeal – toggle automatic healing on errors
+  Help    – show this help
+  Exit    – quit
+
+Use ↑/↓ to navigate, Enter to select, ESC to go back to main menu.
+In Editor: type code, use arrow keys, Home/End, Page Up/Down, Tab for indent.
 """
         self.output_callback(help_text)
 
     # ---------- Main Loop ----------
     def run(self, stdscr):
         self.stdscr = stdscr
+        self.rows, self.cols = stdscr.getmaxyx()
+
+        if self.rows < 20 or self.cols < 50:
+            stdscr.clear()
+            stdscr.addstr(0, 0, "Terminal too small! Please resize to at least 20x50.")
+            stdscr.addstr(1, 0, "Press any key to exit.")
+            stdscr.refresh()
+            stdscr.getch()
+            return
+
         curses.curs_set(1)
         stdscr.nodelay(0)
         curses.noecho()
+        self._init_colors()
 
-        # Setup windows
-        self.rows, self.cols = stdscr.getmaxyx()
-        self.editor_rows = int(self.rows * 0.6)
-        self.output_rows = int(self.rows * 0.3)
-        status_rows = 1
-        cmd_rows = 1
-
-        self.editor_win = curses.newwin(self.editor_rows, self.cols, 0, 0)
-        self.output_win = curses.newwin(self.output_rows, self.cols, self.editor_rows, 0)
-        self.status_win = curses.newwin(status_rows, self.cols, self.editor_rows + self.output_rows, 0)
-        self.cmd_win = curses.newwin(cmd_rows, self.cols, self.editor_rows + self.output_rows + status_rows, 0)
+        # Calculate regions
+        self.editor_rows = max(5, self.rows - self.banner_rows - 8)
+        self.output_rows = max(3, self.rows - self.banner_rows - self.editor_rows - 6)
 
         self._redraw()
 
-        # Main event loop
         while True:
             try:
                 key = stdscr.getch()
@@ -770,20 +927,8 @@ Shell commands can be typed directly (e.g., ls, pip).
             if key == -1:
                 continue
 
-            # Process UI events from queue
             self._process_ui_queue()
-
-            if key == 27:  # ESC: exit command mode or just ignore
-                if self.cmd_mode:
-                    self.cmd_mode = False
-                    self.cmd_buffer = ""
-                continue
-
-            if self.cmd_mode:
-                self._handle_cmd_key(key)
-            else:
-                self._handle_key(key)
-
+            self._handle_key(key)
             self._redraw()
 
         curses.endwin()
@@ -794,7 +939,6 @@ Shell commands can be typed directly (e.g., ls, pip).
             if item[0] == 'output':
                 text = item[1]
                 self.output_lines.append(text)
-                # Limit lines to avoid memory issues
                 if len(self.output_lines) > 1000:
                     self.output_lines = self.output_lines[-500:]
             elif item[0] == 'trace':
@@ -804,18 +948,15 @@ Shell commands can be typed directly (e.g., ls, pip).
                 elif event_type == 'vars':
                     if data:
                         self.output_lines.append("Trace: " + ", ".join(f"{k}={v}" for k, v in data.items()))
-                # Limit
                 if len(self.output_lines) > 1000:
                     self.output_lines = self.output_lines[-500:]
             elif item[0] == 'clear_output':
                 self.output_lines.clear()
-            # Update output window scroll to bottom
             self._redraw()
 
 # ===========================
 # ENTRY POINT
 # ===========================
 if __name__ == "__main__":
-    # Use curses.wrapper to handle setup/teardown
-    app = ReplitApp()
+    app = AnioxazApp()
     curses.wrapper(app.run)
