@@ -1,0 +1,2 @@
+[console_scripts]
+anioxaz = anioxaz.cli:main

@@ -1,0 +1,71 @@
+Metadata-Version: 2.4
+Name: anioxaz
+Version: 1.0.0
+Summary: ANIOXAZ offline dual-model coding workspace
+Author: Rehan Aman
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: textual>=0.58.0
+
+# ANIOXAZ
+
+ANIOXAZ is an offline, local-first coding workspace for working with a dual-model workflow:
+
+- Architect handles planning, diagnosis, and explanations
+- Coder writes code only and follows the Architect plan
+- Textual provides the editor and modal UI
+- local GGUF models can be loaded from disk for fully offline use
+
+## Features
+
+- local model loading for Architect and Coder
+- editor with save/open/new buffer and file operations
+- philosophy file support for persistent project guidance
+- code execution support for Python and other local runtimes when available
+- repair and auto-heal loop for failed runs
+- packaged CLI entry point: `anioxaz`
+
+## Install dependencies
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+
+## Install from the built wheel
+
+From the project root:
+
+```bash
+python -m pip install dist/anioxaz-1.0.0-py3-none-any.whl
+```
+
+## Run the CLI
+
+```bash
+anioxaz
+```
+
+## Using the app
+
+Once the app starts:
+
+1. Open the menu and choose Model
+2. Load a local GGUF file for the Architect and/or Coder model
+3. Open the editor and create or open a source file
+4. Use Build, Run, Fix, Explain, or Generate from the menu
+5. Optionally create a Philosophy File to guide the Architect across sessions
+
+## Requirements
+
+- Python 3.10+
+- Textual
+- a local GGUF model if you want to use the offline model pipeline
+
+## Project metadata
+
+- package name: `anioxaz`
+- version: `1.0.0`
+- author: `Rehan Aman`

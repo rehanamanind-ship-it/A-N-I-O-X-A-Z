@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+src/anioxaz/__init__.py
+src/anioxaz/app.py
+src/anioxaz/cli.py
+src/anioxaz/core.py
+src/anioxaz/editor.py
+src/anioxaz/executor.py
+src/anioxaz/models.py
+src/anioxaz.egg-info/PKG-INFO
+src/anioxaz.egg-info/SOURCES.txt
+src/anioxaz.egg-info/dependency_links.txt
+src/anioxaz.egg-info/entry_points.txt
+src/anioxaz.egg-info/requires.txt
+src/anioxaz.egg-info/top_level.txt
+tests/test_core.py

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "anioxaz"
+version = "1.0.0"
+description = "ANIOXAZ offline dual-model coding workspace"
+readme = "README.md"
+authors = [{ name = "Rehan Aman" }]
+requires-python = ">=3.10"
+dependencies = [
+  "textual>=0.58.0",
+]
+
+[project.scripts]
+anioxaz = "anioxaz.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
