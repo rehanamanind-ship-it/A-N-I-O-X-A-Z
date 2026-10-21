@@ -1,0 +1,24 @@
+ANIOXAZ Release Log
+===================
+
+Version 1.0.0
+-------------
+- Initial project package structure and CLI scaffold.
+- Basic Textual app shell and editor flow.
+- Prototype local-model workflow and basic project scaffolding.
+- Initial packaging metadata and install path set up.
+
+Version 1.0.1
+-------------
+- Fixed the startup crash caused by a naming conflict with Textual's internal logger.
+- Renamed the custom app log method from `log` to `append_log` to avoid overriding Textual's `App.log` object.
+- Updated all affected call sites across the app runtime.
+- Bumped package version to 1.0.1 in project metadata and package `__version__`.
+- Updated README installation instructions to reference the correct wheel filename.
+- Confirmed the project passes tests and builds successfully with `python -m pytest -q` and `python -m build`.
+
+Maintenance notes
+-----------------
+- This release keeps the project installable and launchable as a packaged CLI.
+- The app remains designed for local/offline model workflows and editor-based coding assistance.
+- Use `anioxaz` after installation to launch the UI.
