@@ -193,21 +193,21 @@ class AnioxazApp(App[None]):
         for item in self.output_history[-300:]:
             log.write(item)
 
-    def log(self, message: str) -> None:
+    def append_log(self, message: str) -> None:
         for target in self.query(RichLog):
             target.write(message)
         self.output_history.extend(message.splitlines())
         self.output_history = self.output_history[-MAX_LOG_LINES:]
 
     def thread_log(self, message: str) -> None:
-        self.call_from_thread(self.log, message)
+        self.call_from_thread(self.append_log, message)
 
     def trace_event_from_worker(self, event_type: str, data: dict) -> None:
         if event_type == "line":
-            self.call_from_thread(self.log, f"Trace · line {data['line']}")
+            self.call_from_thread(self.append_log, f"Trace · line {data['line']}")
         elif event_type == "vars" and data:
             values = ", ".join(f"{key}={value}" for key, value in data.items())
-            self.call_from_thread(self.log, "Trace · " + values)
+            self.call_from_thread(self.append_log, "Trace · " + values)
 
     def model_summary(self) -> str:
         return f"Architect: {self.architect.name} · Coder: {self.coder.name}"
@@ -395,7 +395,7 @@ class AnioxazApp(App[None]):
         try:
             source = path.read_text(encoding="utf-8")
         except OSError as exc:
-            self.log(f"File open error: {exc}")
+            self.append_log(f"File open error: {exc}")
             self.notify(f"Could not open file: {exc}", severity="error")
             return
 
@@ -408,7 +408,7 @@ class AnioxazApp(App[None]):
             self.buffers.append(buffer)
             self.active_buffer_index = len(self.buffers) - 1
         self.refresh_editor_buffer()
-        self.log(f"Opened: {path}")
+        self.append_log(f"Opened: {path}")
         self.notify(f"Opened {path.name}")
 
     def save_active(self) -> None:
@@ -433,10 +433,10 @@ class AnioxazApp(App[None]):
             self.active_buffer.language = detect_language(str(path))
             self.active_buffer.dirty = False
             self.refresh_editor_buffer()
-            self.log(f"Saved: {path}")
+            self.append_log(f"Saved: {path}")
             self.notify(f"Saved {path.name}")
         except OSError as exc:
-            self.log(f"Save error: {exc}")
+            self.append_log(f"Save error: {exc}")
             self.notify(f"Could not save file: {exc}", severity="error")
 
     def ask_rename(self) -> None:
@@ -454,7 +454,7 @@ class AnioxazApp(App[None]):
             self.active_buffer.path = target
             self.active_buffer.language = detect_language(str(target))
             self.refresh_editor_buffer()
-            self.log(f"Renamed file to: {target}")
+            self.append_log(f"Renamed file to: {target}")
         except OSError as exc:
             self.notify(f"Could not rename file: {exc}", severity="error")
 
@@ -649,7 +649,7 @@ class AnioxazApp(App[None]):
 
     def finish_model_load(self, success: bool, message: str) -> None:
         self.set_status("idle" if success else "error", "Ready" if success else "Model error")
-        self.log(message)
+        self.append_log(message)
         self.notify(message, severity="information" if success else "error")
 
     def open_philosophy_menu(self) -> None:
@@ -700,7 +700,7 @@ class AnioxazApp(App[None]):
         try:
             self.philosophy_text = path.read_text(encoding="utf-8")
             self.philosophy_path = path
-            self.log(f"Philosophy File loaded: {path}")
+            self.append_log(f"Philosophy File loaded: {path}")
             self.notify(f"Loaded {path.name}")
         except OSError as exc:
             self.notify(f"Could not load Philosophy File: {exc}", severity="error")
@@ -738,7 +738,7 @@ class AnioxazApp(App[None]):
         try:
             self.philosophy_path.parent.mkdir(parents=True, exist_ok=True)
             self.philosophy_path.write_text(value, encoding="utf-8")
-            self.log(f"Philosophy File saved: {self.philosophy_path}")
+            self.append_log(f"Philosophy File saved: {self.philosophy_path}")
             self.notify("Philosophy File saved.")
         except OSError as exc:
             self.notify(f"Could not save Philosophy File: {exc}", severity="error")
@@ -746,7 +746,7 @@ class AnioxazApp(App[None]):
     def clear_philosophy(self) -> None:
         self.philosophy_text = ""
         self.philosophy_path = None
-        self.log("Philosophy File cleared for this session.")
+        self.append_log("Philosophy File cleared for this session.")
         self.notify("Philosophy File cleared.")
 
     def ask_shell(self) -> None:
@@ -759,7 +759,7 @@ class AnioxazApp(App[None]):
 
     def stop_shell(self) -> None:
         if self.terminal.stop():
-            self.log("Shell stop requested.")
+            self.append_log("Shell stop requested.")
             self.notify("Shell stop requested.")
         else:
             self.notify("No shell command is running.", severity="warning")
@@ -789,7 +789,7 @@ class AnioxazApp(App[None]):
         if self.architect.loaded:
             try:
                 plan = self.architect.plan(request.strip(), self.philosophy_text, source)
-                self.log(f"Architect plan:\n{plan}")
+                self.append_log(f"Architect plan:\n{plan}")
             except RuntimeError as exc:
                 self.notify(str(exc), severity="error")
                 self.set_status("error", "Planning failed")
@@ -813,10 +813,10 @@ class AnioxazApp(App[None]):
         if result.error is None:
             if self.architect.loaded:
                 summary = self.architect.summarize(request.strip(), result.stdout, self.philosophy_text)
-                self.log(summary)
+                self.append_log(summary)
                 self.notify("Request completed successfully.", severity="information")
             else:
-                self.log(result.stdout or "Completed successfully.")
+                self.append_log(result.stdout or "Completed successfully.")
                 self.notify("Request completed successfully.", severity="information")
             self.set_status("idle", "Ready")
             self.pipeline_active = False
@@ -826,25 +826,25 @@ class AnioxazApp(App[None]):
             self.set_status("thinking", "Diagnosing failure and repairing…")
             try:
                 classification, explanation, instruction = self.architect.diagnose(plan or "No plan available.", result.error, "")
-                self.log(f"Classification: {classification}\n{explanation}\nRepair instruction: {instruction}")
+                self.append_log(f"Classification: {classification}\n{explanation}\nRepair instruction: {instruction}")
                 repaired = self.coder.repair(instruction, self.active_buffer.text)
                 self.replace_active_code(repaired, self.active_buffer.language)
-                self.log("Repair attempt applied.")
+                self.append_log("Repair attempt applied.")
                 rerun = self.executor.run(self.active_buffer.text, self.active_buffer.language)
                 if rerun.error is None:
                     if self.architect.loaded:
-                        self.log(self.architect.summarize(request.strip(), rerun.stdout, self.philosophy_text))
+                        self.append_log(self.architect.summarize(request.strip(), rerun.stdout, self.philosophy_text))
                     else:
-                        self.log(rerun.stdout or "Completed after repair.")
+                        self.append_log(rerun.stdout or "Completed after repair.")
                     self.set_status("idle", "Ready")
                     self.pipeline_active = False
                     return
                 self.notify("Auto-heal did not fully resolve the issue.", severity="warning")
-                self.log(rerun.error)
+                self.append_log(rerun.error)
             except RuntimeError as exc:
                 self.notify(str(exc), severity="error")
         self.set_status("error", "Execution failed")
-        self.log(result.error)
+        self.append_log(result.error)
         self.notify(result.error, severity="error")
         self.pipeline_active = False
 
@@ -856,11 +856,11 @@ class AnioxazApp(App[None]):
         result = self.executor.run(self.active_buffer.text, self.active_buffer.language)
         if result.error is None:
             output = result.stdout or "(no output)"
-            self.log(f"Program output:\n{output}")
+            self.append_log(f"Program output:\n{output}")
             self.notify("Code executed successfully.", severity="information")
             self.set_status("idle", "Ready")
         else:
-            self.log(result.error)
+            self.append_log(result.error)
             self.notify(result.error, severity="error")
             self.set_status("error", "Execution failed")
 
@@ -878,6 +878,6 @@ class AnioxazApp(App[None]):
             self.notify(str(exc), severity="error")
             self.set_status("error", "Explanation failed")
             return
-        self.log(f"Architect explanation:\n{explanation}")
+        self.append_log(f"Architect explanation:\n{explanation}")
         self.notify("Code explanation generated.", severity="information")
         self.set_status("idle", "Ready")

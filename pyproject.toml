@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anioxaz"
-version = "1.0.0"
+version = "1.0.1"
 description = "ANIOXAZ offline dual-model coding workspace"
 readme = "README.md"
 authors = [{ name = "Rehan Aman" }]

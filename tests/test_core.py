@@ -2,8 +2,8 @@ from anioxaz import __version__
 from anioxaz.core import detect_language, strip_code_fence
 
 
-def test_version_is_1_0_0():
-    assert __version__ == "1.0.0"
+def test_version_is_1_0_1():
+    assert __version__ == "1.0.1"
 
 
 def test_strip_code_fence_removes_markdown_wrappers():
