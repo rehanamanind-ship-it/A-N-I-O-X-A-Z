@@ -194,10 +194,11 @@ class AnioxazApp(App[None]):
             log.write(item)
 
     def append_log(self, message: str) -> None:
-        for target in self.query(RichLog):
-            target.write(message)
         self.output_history.extend(message.splitlines())
         self.output_history = self.output_history[-MAX_LOG_LINES:]
+        if self.is_running:
+            for target in self.query(RichLog):
+                target.write(message)
 
     def thread_log(self, message: str) -> None:
         self.call_from_thread(self.append_log, message)

@@ -17,6 +17,14 @@ Version 1.0.1
 - Updated README installation instructions to reference the correct wheel filename.
 - Confirmed the project passes tests and builds successfully with `python -m pytest -q` and `python -m build`.
 
+Version 1.0.2
+-------------
+- Model loading now validates the requested file path before checking the optional model dependency.
+- Application logging now works safely before the Textual screen is mounted.
+- Added behavioral FRS tests for model loading, execution, editor interfaces, terminal commands, AutoHeal, and pipeline availability.
+- Confirmed all ten requirements are mapped, tested, and satisfied by NIWOEC 2.1.0.
+- Added the FRS verification report and NIWOEC improvement recommendations.
+
 Maintenance notes
 -----------------
 - This release keeps the project installable and launchable as a packaged CLI.

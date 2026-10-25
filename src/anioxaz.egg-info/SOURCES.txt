@@ -14,3 +14,4 @@ src/anioxaz.egg-info/entry_points.txt
 src/anioxaz.egg-info/requires.txt
 src/anioxaz.egg-info/top_level.txt
 tests/test_core.py
+tests/test_frs.py

@@ -1,0 +1,10 @@
+load_model: load local GGUF models for the Architect and Coder roles.
+run_pipeline: process build, fix, and generate requests through the Architect and Coder workflow.
+append_log: display application output and retain bounded output history in the Textual interface.
+detect_language: detect the source language from file extensions and request hints.
+CodeExecutor: execute Python and supported local source languages with clear failures when a runtime is unavailable.
+EditorScreen: provide an editor surface with buffers, file operations, search, replace, navigation, and wrapping controls.
+Philosophy: load, edit, view, save, replace, and clear persistent Philosophy File guidance for the Architect.
+Terminal: run local shell commands asynchronously and allow a running command to be stopped.
+AutoHeal: diagnose failed generated code and apply a repair attempt when AutoHeal is enabled.
+anioxaz: expose an installable CLI entry point that launches the Textual application.

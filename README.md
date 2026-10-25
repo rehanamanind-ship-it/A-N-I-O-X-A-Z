@@ -30,7 +30,7 @@ python -m pip install -r requirements.txt
 From the project root:
 
 ```bash
-python -m pip install dist/anioxaz-1.0.1-py3-none-any.whl
+python -m pip install dist/anioxaz-1.0.2-py3-none-any.whl
 ```
 
 ## Run the CLI
@@ -58,5 +58,5 @@ Once the app starts:
 ## Project metadata
 
 - package name: `anioxaz`
-- version: `1.0.1`
+- version: `1.0.2`
 - author: `Rehan Aman`

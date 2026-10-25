@@ -32,12 +32,12 @@ class LocalModel:
 
     def load(self, path: str) -> tuple[bool, str]:
         path = path.strip()
-        if Llama is None:
-            return False, "llama-cpp-python is not installed."
         if not path:
             return False, "Choose a local GGUF model path."
         if not Path(path).is_file():
             return False, f"Model file was not found: {path}"
+        if Llama is None:
+            return False, "llama-cpp-python is not installed."
         try:
             with self._lock:
                 self.llm = Llama(
